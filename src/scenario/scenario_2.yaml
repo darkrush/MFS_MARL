@@ -1,0 +1,42 @@
+common:
+  use_gui : True
+  time_limit : 100.0    # maximal time for one episode
+  reset_mode : init
+  field_range : [-1.5,1.5,-1.5,1.5]
+  
+  reward_coef :
+    reach : 20.0         # reward for reach goal
+    crash : -10.0        # reward for crash
+    time_penalty: -1.0   # time penalty per second
+    potential: 10.0     # coefficient of potential reward
+
+default_agent: &default_agent # default setting
+  R_safe  : 0.20  # minimal distance not crash
+  R_reach : 0.1  # maximal distance for reach target
+  L_car   : 0.30 # length of the car
+  W_car   : 0.20  # width of the car
+  L_axis  : 0.20 # distance between front and back wheel
+  R_laser : 3.0    # range of laser
+  N_laser : 128  # number of laser lines
+  K_vel   : 0.18266    # coefficient of back whell velocity control
+  deg_K_phi   : 17.10   # coefficient of front wheel deflection control 
+  init_movable: true
+  init_enable: true
+
+agent_groups: 
+  group_1:
+    num : 2                     # number of agents in group_1:
+    <<: *default_agent          # use default agent setting
+    init_x     : [-1.5, 1.5]    # init x coordinate
+    init_y     : [-1.5, 1.5]    # init y coordinate
+    #init_x     : [-2.0, 2.0, 2.0,-2.0]    # init x coordinate
+    #init_y     : [-2.0,-2.0, 2.0, 2.0]    # init y coordinate
+    #deg_init_theta : [45.0,135.0,225.0,315.0] # init theta
+    deg_init_theta : [45.0,225.0] # init theta
+    #deg_init_theta : [90.0,90.0,-90.0,-90.0] # init theta
+    init_vel_b : [0.0,0.0]      # init velocity of back point
+    deg_init_phi   : [0.0,0.0]      # init front wheel deflection
+    init_target_x   : [1.5,-1.5]    # target x coordinate
+    init_target_y   : [1.5,-1.5]    # target y coordinate
+    #init_target_x   : [1.0,-1.0,-1.0, 1.0]    # target x coordinate
+    #init_target_y   : [1.0, 1.0,-1.0,-1.0]    # target y coordinate
