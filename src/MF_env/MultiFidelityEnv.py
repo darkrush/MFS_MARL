@@ -284,7 +284,7 @@ class MultiFidelityEnv(object):
             if not state.enable: continue
             if state.reach or state.crash:
                 #print('init state for search not clean')
-                return None,None
+                return None,None, search_step
         search_stack = [SearchNode(begin_state,start_time),]
         search_finish = False
         step = 0
@@ -292,10 +292,10 @@ class MultiFidelityEnv(object):
             step = step + 1
             state = self.backend.get_state()
             if step >= MAX_STEP:
-                return None, None
+                return None, None, search_step
 
             if len(search_stack) == 0:
-                return None,None
+                return None,None, search_step
             next_action_index = search_stack[-1].next_action_index()
             if next_action_index is None:
                 search_stack.pop()

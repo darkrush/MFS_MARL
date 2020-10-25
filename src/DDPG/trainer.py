@@ -130,6 +130,7 @@ class DDPG_trainer(object):
                 self.env.set_history(state_history,obs_history,time_history,action_history)
 
         trajectoy = self.env.get_trajectoy()
+        train_sample = len(trajectoy[0])
         results = self.env.get_result()
         for agent_traj in (trajectoy):
             for trans in agent_traj:
@@ -138,19 +139,23 @@ class DDPG_trainer(object):
                                     trans['reward'],
                                     [trans['obs_next'].pos,trans['obs_next'].laser_data],
                                     trans['done'])
-        critic_loss, actor_loss = self.apply_train(train_actor=train_actor)
+        critic_loss, actor_loss = self._apply_train(train_actor=train_actor)
 
-        log_info = {'total_reward': results['total_reward'],
-                    'crash_time': results['crash_time'],
-                    'reach_time': results['reach_time'],
-                    'mean_vel': results['mean_vel'],
-                    'total_time': results['total_time'],
-                    'critic_loss': critic_loss,
-                    'actor_loss': actor_loss,
-                    'search_step': search_step}
+        log_info = {'train_total_reward': results['total_reward'],
+                    'train_crash_time': results['crash_time'],
+                    'train_reach_time': results['reach_time'],
+                    'train_mean_vel': results['mean_vel'],
+                    'train_total_time': results['total_time'],
+                    'train_critic_loss': critic_loss,
+                    'train_actor_loss': actor_loss,
+                    'train_search_step': search_step,
+                    'train_train_step': train_sample}
         return log_info
-    
-    def apply_lr_decay(decay_sacle):
+
+    def save_model(self, model_dir):
+        self.agent.save_model(model_dir)
+
+    def apply_lr_decay(self, decay_sacle):
         self.agent.apply_lr_decay(decay_sacle)
 
     def eval(self):
@@ -160,7 +165,7 @@ class DDPG_trainer(object):
         results = self.eval_env.get_result()
         return results
 
-    def apply_train(self,train_actor = True):
+    def _apply_train(self,train_actor = True):
         #update agent for nb_train_steps times
         cl_list = []
         al_list = []
