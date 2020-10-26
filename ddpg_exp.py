@@ -16,7 +16,7 @@ def parse_arg():
     parser.add_argument('--nb-train-steps', default=20, type=int, help='number train steps')
     parser.add_argument('--nb-warmup-steps', default=100, type=int, help='time without training but only filling the replay memory')
     parser.add_argument('--train-mode', default=1, type=int, help='traing mode')
-    parser.add_argument('--decay-coef', default=0.2, type=float, help='decay coef')
+    parser.add_argument('--decay-coef', default=0.5, type=float, help='decay coef')
     parser.add_argument('--search-method', default = 0, type=int, help='1 if do policy search')
     parser.add_argument('--back-step', default = 7, type=int, help='back step for search policy')
     parser.add_argument('--seed', default=0, type=int, help='random_seed')

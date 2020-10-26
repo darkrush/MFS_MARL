@@ -87,7 +87,6 @@ def run_ddpg(args_dict, run_instance = None):
             # count the total cycle number 
             cycle_count += 1
             
-        trainer.apply_lr_decay(epsilon)
         # save model
         trainer.save_model(run_instance.dir)
 
