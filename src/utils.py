@@ -19,8 +19,18 @@ class process_bar(object):
         return process_past, time_total, time_left
 
 def float2time(f_time):
+    _f_time = f_time
     str_time = ''
-    if f_time>3600*24:
-        day = f_time // 3600*24
-    if f_time>3600:
-        str_time += ''
+    if f_time>=3600*24:
+        day = _f_time // (3600*24)
+        _f_time -= day * 3600 * 24
+        str_time += '%dd '%day
+    if f_time>=3600:
+        h = _f_time // 3600
+        _f_time -= h * 3600
+        str_time += '%dh '%h
+    m = _f_time // 60
+    _f_time -= m * 60
+    str_time += '%dm '%m
+    str_time += '%ds'%_f_time
+    return str_time

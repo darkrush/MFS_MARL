@@ -3,7 +3,7 @@ from .MF_env import MultiFidelityEnv
 from .MSE import MSE_backend
 from .DDPG.trainer import DDPG_trainer
 from .MF_env.paser import  parse_senario
-from .utils import process_bar
+from .utils import process_bar,float2time
 import numpy as np
 import torch
 import random
@@ -70,13 +70,14 @@ def run_ddpg(args_dict, run_instance = None):
             
             # process bar take a tik
             process_past, time_total, time_left = PB.tik()
-
+            str_time_total = float2time(time_total)
+            str_time_left = float2time(time_left)
             # print log info, epoch, cycle, total_reward, crash_time, reach_time.
             str_log_info = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()) +\
                        ' epoch: %d/%d, '%(epoch+1, args_dict['nb_epoch']) +\
                        'cycle: %d/%d, '%(cycle_count+1, total_cycle) +\
                        'process: %d%%, '%(process_past) +\
-                       'time: %f/%f, '%(time_left,time_total) +\
+                       'time: %s/%s, '%(str_time_left,str_time_total) +\
                        'train_total_reward: %f, '%(log_info['train_total_reward']) +\
                        'train_crash_time: %f, '%(log_info['train_crash_time']) +\
                        'train_reach_time: %f, '%(log_info['train_reach_time'])
