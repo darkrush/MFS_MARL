@@ -19,8 +19,6 @@ class DDPG(object):
         self.batch_size = args_dict['batch_size']
         self.buffer_size = int(args_dict['buffer_size'])
         self.args_dict = args_dict
-        self.critic_optim  = None 
-        self.actor_optim  = None
         
     def setup(self):
         self.lr_coef = 1
@@ -40,6 +38,13 @@ class DDPG(object):
         self.actor_target  = copy.deepcopy(actor)
         self.critic        = copy.deepcopy(critic)
         self.critic_target = copy.deepcopy(critic)
+
+        
+        p_groups = [{'params': [param,],
+                    'weight_decay': self.l2_critic if ('weight' in name) and ('LN' not in name) else 0
+                    } for name,param in self.critic.named_parameters() ]
+        self.critic_optim = Adam(params = p_groups, lr=self.critic_lr, weight_decay = self.l2_critic)
+        self.actor_optim = Adam(self.actor.parameters(), lr=self.actor_lr)
         self.memory = Memory(limit=self.buffer_size,
                              action_shape=(self.args_dict['nb_actions'],),
                              observation_shape=[(self.args_dict['nb_pos'],), (self.args_dict['nb_laser'],)])
@@ -49,6 +54,11 @@ class DDPG(object):
         for net in (self.actor, self.actor_target, self.critic, self.critic_target):
             if net is not None:
                 net.cuda()
+        p_groups = [{'params': [param,],
+                    'weight_decay': self.l2_critic if ('weight' in name) and ('LN' not in name) else 0
+                    } for name,param in self.critic.named_parameters() ]
+        self.critic_optim = Adam(params = p_groups, lr=self.critic_lr, weight_decay = self.l2_critic)
+        self.actor_optim = Adam(self.actor.parameters(), lr=self.actor_lr)
         
         
         
@@ -66,11 +76,6 @@ class DDPG(object):
         q_batch = self.critic(tensor_obs0[0],tensor_obs0[1], batch['actions'])
         value_loss = nn.functional.mse_loss(q_batch, target_q_batch)
         value_loss.backward()
-        if self.critic_optim is None:
-            p_groups = [{'params': [param,],
-                        'weight_decay': self.l2_critic if ('weight' in name) and ('LN' not in name) else 0
-                        } for name,param in self.critic.named_parameters() ]
-            self.critic_optim = Adam(params = p_groups, lr=self.critic_lr, weight_decay = self.l2_critic)
         self.critic_optim.step()
         return value_loss.item()
     
@@ -91,8 +96,6 @@ class DDPG(object):
             policy_loss = -self.critic(tensor_obs0[0],tensor_obs0[1],self.actor(tensor_obs0[0],tensor_obs0[1]))
             policy_loss = policy_loss.mean()
             policy_loss.backward()
-            if self.actor_optim is None:
-                self.actor_optim = Adam(self.actor.parameters(), lr=self.actor_lr)
             self.actor_optim.step()
         else:
             with torch.no_grad():

@@ -30,7 +30,7 @@ def parse_arg():
     parser.add_argument('--discount', default=0.99, type=float, help='reward discout')
     parser.add_argument('--tau', default=0.001, type=float, help='moving average for target network')
     parser.add_argument('--batch-size', default=256, type=int, help='minibatch size')
-    parser.add_argument('--buffer-size', default=1e6, type=int, help='memory buffer size')
+    parser.add_argument('--buffer-size', default=1e5, type=int, help='memory buffer size')
 
     #Model args
     parser.add_argument('--hidden1', default=128, type=int, help='number of hidden1')
