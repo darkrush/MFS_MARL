@@ -76,7 +76,7 @@ def run_ddpg(args_dict, run_instance = None):
             str_log_info = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()) +\
                        ' epoch: %d/%d, '%(epoch+1, args_dict['nb_epoch']) +\
                        'cycle: %d/%d, '%(cycle_count+1, total_cycle) +\
-                       'process: %d%%, '%(process_past) +\
+                       'process: %d%%, '%(process_past*100) +\
                        'time: %s/%s, '%(str_time_left,str_time_total) +\
                        'train_total_reward: %f, '%(log_info['train_total_reward']) +\
                        'train_crash_time: %f, '%(log_info['train_crash_time']) +\

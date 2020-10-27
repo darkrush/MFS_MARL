@@ -1,21 +1,35 @@
 import time
-
+import numpy as np
 class process_bar(object):
-    def __init__(self, tik_number):
-        self.total_tik_number = tik_number
+    def __init__(self, total_tik_number, std_scale = 3.0, move_sacle = 0.9):
+        self.total_tik_number = total_tik_number
+        self.std_scale = std_scale
+        self.move_sacle = move_sacle
 
     def start(self):
-        self.start_time = time.time()
-        self.tik_number = 0
+        self.tik_list = [time.time()]
+        self.delta_tik_list = []
+        self.move_mean = None
     
+    def _calc_mean_time(self):
+        time_std = np.std(self.delta_tik_list[-10:]) * self.std_scale
+        if self.move_mean is None:
+            predict_move_mean = self.delta_tik_list[0]
+        else:
+            predict_move_mean = self.move_mean*self.move_sacle + self.delta_tik_list[-1]*(1-self.move_mean)
+        if abs(self.delta_tik_list[-1]-predict_move_mean)>time_std:
+            self.move_mean = self.delta_tik_list[-1]
+        else:
+            self.move_mean = predict_move_mean
+
     def tik(self):
-        self.tik_number += 1
-        process_past = self.tik_number / self.total_tik_number
-        process_left = 1 - process_past
-        now_time = time.time()
-        time_past = now_time - self.start_time
-        time_total = time_past / process_past
-        time_left = time_total * process_left
+        self.tik_list.append(time.time())
+        self.delta_tik_list.append(self.tik_list[-1]-self.tik_list[-2])
+        self._calc_mean_time()
+
+        process_past = len(self.delta_tik_list) / self.total_tik_number
+        time_total = self.move_mean * *self.total_tik_number
+        time_left = time_total * (1-process_past)
         return process_past, time_total, time_left
 
 def float2time(f_time):
