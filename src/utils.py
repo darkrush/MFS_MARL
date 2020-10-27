@@ -16,7 +16,7 @@ class process_bar(object):
         if self.move_mean is None:
             predict_move_mean = self.delta_tik_list[0]
         else:
-            predict_move_mean = self.move_mean*self.move_sacle + self.delta_tik_list[-1]*(1-self.move_mean)
+            predict_move_mean = self.move_mean*self.move_sacle + self.delta_tik_list[-1]*(1-self.move_sacle)
         if abs(self.delta_tik_list[-1]-predict_move_mean)>time_std:
             self.move_mean = self.delta_tik_list[-1]
         else:
@@ -28,7 +28,7 @@ class process_bar(object):
         self._calc_mean_time()
 
         process_past = len(self.delta_tik_list) / self.total_tik_number
-        time_total = self.move_mean * *self.total_tik_number
+        time_total = self.move_mean * self.total_tik_number
         time_left = time_total * (1-process_past)
         return process_past, time_total, time_left
 
