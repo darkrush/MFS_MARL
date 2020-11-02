@@ -8,11 +8,11 @@ import numpy as np
 import torch
 import random
 
-def get_env(scenario_name, step_t, sim_t, use_gui=False):
+def get_env(scenario_name, step_t, sim_t, use_gui=False, sync_step = False):
     scenario = parse_senario(scenario_name)
     backend = MSE_backend.MSE_backend(scenario=scenario, step_t=step_t, sim_t=sim_t)
     backend.use_gui = use_gui
-    env = MultiFidelityEnv.MultiFidelityEnv(scenario,backend)
+    env = MultiFidelityEnv.MultiFidelityEnv(scenario,backend,sync_step)
     return env
 
 def run_ddpg(args_dict, run_instance = None):
@@ -29,7 +29,7 @@ def run_ddpg(args_dict, run_instance = None):
     torch.backends.cudnn.benchmark = False
     torch.backends.cudnn.deterministic = True
 
-    # setup environment instance for trainning, searching policy and evaluation(Eval not used yet)
+    # setup environment instance for trainning, searching policy and evaluation
     train_env = get_env(args_dict['train_env'], step_t=args_dict['step_t'], sim_t=args_dict['train_dt'])
     search_env = get_env(args_dict['search_env'], step_t=args_dict['step_t'], sim_t=args_dict['search_dt'])
     eval_env = get_env(args_dict['eval_env'], step_t=args_dict['step_t'], sim_t=args_dict['eval_dt'])
@@ -37,7 +37,8 @@ def run_ddpg(args_dict, run_instance = None):
     # setup DDPG trainer.
     trainer = DDPG_trainer(args_dict)
     trainer.setup(train_env, search_env, eval_env)
-    trainer.cuda()
+    if args_dict['cuda']==1:
+        trainer.cuda()
     
     # Trainning DDPG
     cycle_count = 0

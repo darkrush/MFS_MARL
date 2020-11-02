@@ -33,10 +33,14 @@ class NN_policy(object):
         self.actor = copy.deepcopy(actor)   
         self.epsilon = epsilon 
         self.min_dis = min_dis
+        self.cuda = next(self.actor.parameters()).is_cuda
     def inference(self,obs_list,state_list):
         with torch.no_grad():
-            pos = torch.Tensor(np.vstack([obs.pos for obs in obs_list])).cuda()
-            laser_data = torch.Tensor(np.vstack([obs.laser_data for obs in obs_list])).cuda()
+            pos = torch.Tensor(np.vstack([obs.pos for obs in obs_list]))
+            laser_data = torch.Tensor(np.vstack([obs.laser_data for obs in obs_list]))
+            if self.cuda:
+                pos = pos.cuda()
+                laser_data = laser_data.cuda()
             action = self.actor(pos,laser_data).cpu().numpy()
         if random.random() <self.epsilon:
             action = np.random.normal(0,1,action.shape)

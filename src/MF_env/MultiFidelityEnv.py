@@ -105,9 +105,10 @@ class SearchNode(object):
 
 
 class MultiFidelityEnv(object):
-    def __init__(self,senario_dict,backend):
+    def __init__(self,senario_dict,backend,sync_step = False):
         self.backend = backend
         self.senario_dict = senario_dict
+        self.sync_step = sync_step
         self.time_limit = senario_dict['common']['time_limit']
         self.reward_coef = senario_dict['common']['reward_coef']
         self.reset_mode = senario_dict['common']['reset_mode']
@@ -341,13 +342,15 @@ class MultiFidelityEnv(object):
         for agent_idx in range(self.agent_num):
             trajectoy_agent = []
             for idx in range(len(self.action_history)):
-                if self.state_history[idx][agent_idx].movable :
+                if self.state_history[idx][agent_idx].movable or self.sync_step:
                     done = not self.state_history[idx+1][agent_idx].movable
                     time = self.time_history[idx]
                     obs = self.obs_history[idx][agent_idx]
                     obs_next = self.obs_history[idx+1][agent_idx]
                     action = self.action_history[idx][agent_idx]
                     reward = self._calc_reward(self.state_history[idx+1][agent_idx],self.state_history[idx][agent_idx],self.time_history[idx+1]-self.time_history[idx])
+                    if not self.state_history[idx][agent_idx].movable:
+                        reward = 0
                     trajectoy_agent.append({'obs':obs,'action':action,'reward': reward, 'obs_next':obs_next, 'done':done, 'time':time})
             trajectoy.append(trajectoy_agent)
         return trajectoy

@@ -21,6 +21,9 @@ def parse_arg():
     parser.add_argument('--back-step', default = 7, type=int, help='back step for search policy')
     parser.add_argument('--seed', default=0, type=int, help='random_seed')
     parser.add_argument('--expert-file', default='./expert.pkl', type=str, help='expert actor file dir')
+    parser.add_argument('--cuda', default=1, type=int, help='cuda')
+    parser.add_argument('--sync-step', default=1, type=int, help='1:Sync step for MARL,0:Async step for RL')
+
     
     #DDPG args
     parser.add_argument('--actor-lr', default=0.001, type=float, help='actor net learning rate')
