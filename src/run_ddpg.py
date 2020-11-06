@@ -1,6 +1,6 @@
 import time
 from .MF_env import MultiFidelityEnv
-from .MSE import MSE_backend
+from .MSE_numba import MSE_backend
 from .DDPG.trainer import DDPG_trainer
 from .MF_env.paser import  parse_senario
 from .utils import process_bar,float2time
