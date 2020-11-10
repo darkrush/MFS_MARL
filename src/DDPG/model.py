@@ -17,13 +17,13 @@ class Actor(nn.Module):
         self.conv1 = nn.Conv1d(1, 1, kernel_size = 5, stride=2, padding=2, dilation=1, groups=1, bias=True, padding_mode='zeros')
         self.conv2 = nn.Conv1d(1, 1, kernel_size = 5, stride=2, padding=2, dilation=1, groups=1, bias=True, padding_mode='zeros')
         self.fc1 = nn.Linear(nb_laser, hidden1)
-        self.fc2 = nn.Linear(hidden1//4+nb_pos, hidden2)
+        self.fc2 = nn.Linear(nb_laser//4+nb_pos, hidden2)
         self.fc3 = nn.Linear(hidden2, nb_actions, bias = False)
         self.relu = nn.ReLU()
         self.softsign = nn.Softsign()
         if self.layer_norm :
             self.LN1_1 = nn.LayerNorm(hidden1//2)
-            self.LN1_2 = nn.LayerNorm(hidden1//4)
+            self.LN1_2 = nn.LayerNorm(nb_laser//4)
             self.LN2 = nn.LayerNorm(hidden2)
         
         
@@ -61,12 +61,12 @@ class Critic(nn.Module):
         self.conv1 = nn.Conv1d(1, 1, kernel_size = 5, stride=2, padding=2, dilation=1, groups=1, bias=True, padding_mode='zeros')
         self.conv2 = nn.Conv1d(1, 1, kernel_size = 5, stride=2, padding=2, dilation=1, groups=1, bias=True, padding_mode='zeros')
         self.fc1 = nn.Linear(nb_laser, hidden1)
-        self.fc2 = nn.Linear(hidden1//4+nb_pos+nb_actions, hidden2)
+        self.fc2 = nn.Linear(nb_laser//4+nb_pos+nb_actions, hidden2)
         self.fc3 = nn.Linear(hidden2, 1)
         self.relu = nn.ReLU()
         if self.layer_norm :
             self.LN1_1 = nn.LayerNorm(hidden1//2)
-            self.LN1_2 = nn.LayerNorm(hidden1//4)
+            self.LN1_2 = nn.LayerNorm(nb_laser//4)
             self.LN2 = nn.LayerNorm(hidden2)
         
         self.init_weights(init_w)

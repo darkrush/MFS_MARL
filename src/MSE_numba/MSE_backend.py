@@ -133,7 +133,7 @@ class MSE_backend(object):
                 self.viewer.add_geom(agent_geom['car'][0])
                 self.viewer.add_geom(agent_geom['front_line'][0])
                 self.viewer.add_geom(agent_geom['back_line'][0])
-        
+        self.world.update_laser_state()
         for agent,agent_geom in zip(self.world.agents,self.agent_geom_list):
             for idx,laser_line in enumerate(agent_geom['laser_line']):
                 laser_line[1].set_scale(agent.laser_state[idx],agent.laser_state[idx]) 

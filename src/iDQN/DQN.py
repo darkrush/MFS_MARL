@@ -61,7 +61,7 @@ class DQN(object):
             next_Q_value = next_target_Q_values.gather(1, torch.max(next_Q_values, 1)[1].unsqueeze(1))
             target_Q_value = batch['rewards'] + self.discount * next_Q_value * (1 - batch['terminals1'])
         # Qnetwork update
-        self.Qnetwork_optim.zero_grad()
+        self.Qnetwork.zero_grad()
         Q_values = self.Qnetwork(tensor_obs0[0], tensor_obs0[1])
         Q_value = Q_values.gather(1, tensor_actions)
 

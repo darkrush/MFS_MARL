@@ -126,13 +126,169 @@ class Agent(object):
         max_dist = self.R_reach**2
         at_dist = (self.state.x - self.state.target_x)**2 + (self.state.y - self.state.target_y)**2
         return at_dist<=max_dist
+
+# multi-agent world
+class World(object):
+    def __init__(self,agent_groups,dt):
+        
+        # list of agents and entities (can change at execution-time!)
+        self.agents = []
+        for (_,agent_group) in agent_groups.items():
+            for agent_prop in agent_group:
+                agent = Agent(agent_prop)
+                self.agents.append(agent)
+        for idx,agent in enumerate(self.agents):
+            agent.color = hsv2rgb(360.0/len(self.agents)*idx,1.0,1.0)
+        # simulation timestep
+        self.dt = dt
+        self.cam_range = 4
+        self.viewer = None
+        self.total_time = 0
+        self.laser_dirty = False
+        self._reset_render()
+    def reset(self):
+        self.total_time = 0
+        for agent in self.agents:
+            for k in agent.state.__dict__.keys():
+                if k == 'reach' or k == 'crash':
+                    continue
+                agent.state.__dict__[k] = agent.__dict__['init_'+k]
+            agent.state.crash = False
+            agent.state.reach = False
+        self.laser_dirty = False
+        self._reset_render()
+        return True
+
+    def set_action(self,enable_list,actions):
+        for enable,agent,action in zip(enable_list,self.agents,actions):
+            if not enable: continue
+            agent.action.ctrl_vel = action.ctrl_vel
+            agent.action.ctrl_phi = action.ctrl_phi
+
+    def get_state(self):
+        return [agent.state for agent in self.agents]
     
-def laser_agent_agent(R_laser,N_laser,a,b):
-    laser_result = laser_agent_agent_core(R_laser,N_laser,a.state.x,a.state.y,a.state.theta,b.state.x,b.state.y,b.state.theta,b.L_car,b.W_car)
+    def set_state(self,enable_list,states):
+        for enable,agent,state in zip(enable_list,self.agents,states):
+            if not enable :continue
+            for k in agent.state.__dict__.keys():
+                agent.state.__dict__[k] = state.__dict__[k]
+        self.laser_dirty = False
+
+    def get_obs(self):
+        obs_data = {'time':self.total_time,'obs_data':[]}
+        self.update_laser_state()
+        for idx_a in range(len(self.agents)):
+            state = self.agents[idx_a].state
+            pos = np.array([state.x, state.y, state.theta, state.target_x, state.target_y])
+            laser_data = self.agents[idx_a].laser_state
+            obs = Observation()
+            obs.pos = pos
+            obs.laser_data = laser_data
+            obs_data['obs_data'].append(obs)
+        return obs_data['obs_data']
+
+    # update state of the world
+    def step(self,step_num):
+        for _ in range(step_num):
+            self.apply_action()
+            self.integrate_state()
+            self.check_collisions()
+            self.check_reach()
+            self.total_time += self.dt
+        self.laser_dirty = False
+    
+    # gather agent action forces
+    def apply_action(self):
+        # set applied forces
+        for agent in self.agents:
+            agent.state.vel_b = np.clip(agent.action.ctrl_vel, -1.0, 1.0)*agent.K_vel if agent.state.movable else 0
+            agent.state.phi   = np.clip(agent.action.ctrl_phi, -1.0, 1.0)*agent.K_phi if agent.state.movable else 0
+
+    def update_laser_state(self):
+        if not self.laser_dirty:
+            return
+        for idx_a,agent_a in enumerate(self.agents):
+            R = agent_a.R_laser
+            N = agent_a.N_laser
+            agent_a.laser_state = np.array([R]*N)
+            for idx_b,agent_b in enumerate(self.agents):
+                if idx_a == idx_b:
+                    continue
+                l_laser = laser_agent_agent_wrap(R,N,agent_a,agent_b)
+                agent_a.laser_state = np.min(np.vstack([agent_a.laser_state,l_laser]),axis = 0)
+        self.laser_dirty = True
+
+
+    # integrate physical state
+    def integrate_state(self):
+        for agent in self.agents:
+            if not agent.state.movable: continue
+            agent.state.x,agent.state.y,agent.state.theta = integrate_state_wrap(agent,self.dt)
+        
+    def check_collisions(self):
+        for ia, agent_a in enumerate(self.agents):
+            if agent_a.state.crash :
+                continue
+            for ib, agent_b in enumerate(self.agents):
+                if ia==ib :
+                    continue
+                if agent_a.check_AA_collisions(agent_b) :
+                    agent_a.state.crash = True
+                    agent_a.state.movable = False
+                    break
+    
+    def check_reach(self):
+        for agent in self.agents:
+            reach = agent.check_reach()
+            if reach :
+                agent.state.reach = True
+                agent.state.movable = False
+    
+    def _reset_render(self):
+        self.agent_geom_list = None
+    
+    def set_total_time(self, time):
+        self.total_time = time
+
+    def get_total_time(self):
+        return self.total_time
+
+def integrate_state_wrap(agent,dt):
+    return integrate_state_njit(agent.state.phi,agent.state.vel_b,agent.state.theta,agent.L_axis,agent.state.x,agent.state.y,dt)
+
+@numba.njit()
+def integrate_state_njit(_phi,_vb,_theta,_L,_x,_y,dt):
+    sth = np.sin(_theta)
+    cth = np.cos(_theta)
+    _xb = _x - cth*_L/2.0
+    _yb = _y - sth*_L/2.0
+    tphi = np.tan(_phi)
+    _omega = _vb/_L*tphi
+    _delta_theta = _omega * dt
+    if abs(_phi)>0.00001:
+        _rb = _L/tphi
+        _delta_tao = _rb*(1-np.cos(_delta_theta))
+        _delta_yeta = _rb*np.sin(_delta_theta)
+    else:
+        _delta_tao = _vb*dt*(_delta_theta/2.0)
+        _delta_yeta = _vb*dt*(1-_delta_theta**2/6.0)
+    _xb += _delta_yeta*cth - _delta_tao*sth
+    _yb += _delta_yeta*sth + _delta_tao*cth
+    _theta += _delta_theta
+    _theta = (_theta/3.1415926)%2*3.1415926
+
+    nx = _xb + np.cos(_theta)*_L/2.0
+    ny = _yb + np.sin(_theta)*_L/2.0
+    ntheta = _theta
+    return nx,ny,ntheta
+
+def laser_agent_agent_wrap(R_laser,N_laser,a,b):
+    laser_result = laser_agent_agent_njit(R_laser,N_laser,a.state.x,a.state.y,a.state.theta,b.state.x,b.state.y,b.state.theta,b.L_car,b.W_car)
     return laser_result
 
 @numba.njit()
-def laser_agent_agent_core(R_laser,N_laser,a_x,a_y,a_t,b_x,b_y,b_t,b_L,b_W):
+def laser_agent_agent_njit(R_laser,N_laser,a_x,a_y,a_t,b_x,b_y,b_t,b_L,b_W):
 
     #l_laser = np.array([R_laser]*N_laser)
     l_laser = np.ones((N_laser,),dtype=np.float32)*R_laser
@@ -195,265 +351,3 @@ def laser_agent_agent_core(R_laser,N_laser,a_x,a_y,a_t,b_x,b_y,b_t,b_L,b_W):
             if dist > 0 and dist < R_laser:
                 l_laser[laser_idx] = dist
     return l_laser
-
-# multi-agent world
-class World(object):
-    def __init__(self,agent_groups,dt):
-        
-        # list of agents and entities (can change at execution-time!)
-        self.agents = []
-        for (_,agent_group) in agent_groups.items():
-            for agent_prop in agent_group:
-                agent = Agent(agent_prop)
-                self.agents.append(agent)
-        for idx,agent in enumerate(self.agents):
-            agent.color = hsv2rgb(360.0/len(self.agents)*idx,1.0,1.0)
-        # simulation timestep
-        self.dt = dt
-        self.cam_range = 4
-        self.viewer = None
-        self.total_time = 0
-        self._reset_render()
-    def reset(self):
-        self.total_time = 0
-        for agent in self.agents:
-            for k in agent.state.__dict__.keys():
-                if k == 'reach' or k == 'crash':
-                    continue
-                agent.state.__dict__[k] = agent.__dict__['init_'+k]
-            agent.state.crash = False
-            agent.state.reach = False
-        self._reset_render()
-        return True
-
-    def set_action(self,enable_list,actions):
-        for enable,agent,action in zip(enable_list,self.agents,actions):
-            if not enable: continue
-            agent.action.ctrl_vel = action.ctrl_vel
-            agent.action.ctrl_phi = action.ctrl_phi
-
-    def get_state(self):
-        return [agent.state for agent in self.agents]
-    
-    def set_state(self,enable_list,states):
-        for enable,agent,state in zip(enable_list,self.agents,states):
-            if not enable :continue
-            for k in agent.state.__dict__.keys():
-                agent.state.__dict__[k] = state.__dict__[k]
-
-    def get_obs(self):
-        obs_data = {'time':self.total_time,'obs_data':[]}
-        self.update_laser_state()
-        for idx_a in range(len(self.agents)):
-            state = self.agents[idx_a].state
-            pos = np.array([state.x, state.y, state.theta, state.target_x, state.target_y])
-            laser_data = self.agents[idx_a].laser_state
-            obs = Observation()
-            obs.pos = pos
-            obs.laser_data = laser_data
-            obs_data['obs_data'].append(obs)
-        return obs_data['obs_data']
-
-    # update state of the world
-    def step(self,step_num):
-        for _ in range(step_num):
-            self.apply_action()
-            self.integrate_state()
-            self.check_collisions()
-            self.check_reach()
-            self.total_time += self.dt
-    
-    # gather agent action forces
-    def apply_action(self):
-        # set applied forces
-        for agent in self.agents:
-            agent.state.vel_b = np.clip(agent.action.ctrl_vel, -1.0, 1.0)*agent.K_vel if agent.state.movable else 0
-            agent.state.phi   = np.clip(agent.action.ctrl_phi, -1.0, 1.0)*agent.K_phi if agent.state.movable else 0
-
-    def update_laser_state(self):
-        for idx_a,agent_a in enumerate(self.agents):
-            R = agent_a.R_laser
-            N = agent_a.N_laser
-            agent_a.laser_state = np.array([R]*N)
-            for idx_b,agent_b in enumerate(self.agents):
-                if idx_a == idx_b:
-                    continue
-                l_laser = laser_agent_agent(R,N,agent_a,agent_b)
-                agent_a.laser_state = np.min(np.vstack([agent_a.laser_state,l_laser]),axis = 0)
-
-
-
-    # integrate physical state
-    def integrate_state(self):
-        for agent in self.agents:
-            if not agent.state.movable: continue
-            agent.state.x,agent.state.y,agent.state.theta = integrate_state_wrap(agent,self.dt)
-#            _phi = agent.state.phi
-#            _vb = agent.state.vel_b
-#            _theta = agent.state.theta
-#            sth = math.sin(_theta)
-#            cth = math.cos(_theta)
-#            _L = agent.L_axis
-#            _xb = agent.state.x - cth*_L/2.0
-#            _yb = agent.state.y - sth*_L/2.0
-#            tphi = math.tan(_phi)
-#            _omega = _vb/_L*tphi
-#            _delta_theta = _omega * self.dt
-#            if abs(_phi)>0.00001:
-#                _rb = _L/tphi
-#                _delta_tao = _rb*(1-math.cos(_delta_theta))
-#                _delta_yeta = _rb*math.sin(_delta_theta)
-#            else:
-#                _delta_tao = _vb*self.dt*(_delta_theta/2.0)
-#                _delta_yeta = _vb*self.dt*(1-_delta_theta**2/6.0)
-#            
-#            _xb += _delta_yeta*cth - _delta_tao*sth
-#            _yb += _delta_yeta*sth + _delta_tao*cth
-#            _theta += _delta_theta
-#            _theta = (_theta/math.pi)%2*math.pi
-#
-#            agent.state.x = _xb + math.cos(_theta)*_L/2.0
-#            agent.state.y = _yb + math.sin(_theta)*_L/2.0
-#            agent.state.theta = _theta
-        
-    def check_collisions(self):
-        for ia, agent_a in enumerate(self.agents):
-            if agent_a.state.crash :
-                continue
-            for ib, agent_b in enumerate(self.agents):
-                if ia==ib :
-                    continue
-                if agent_a.check_AA_collisions(agent_b) :
-                    agent_a.state.crash = True
-                    agent_a.state.movable = False
-                    break
-    
-    def check_reach(self):
-        for agent in self.agents:
-            reach = agent.check_reach()
-            if reach :
-                agent.state.reach = True
-                agent.state.movable = False
-    
-    def _reset_render(self):
-        self.agent_geom_list = None
-    
-    def set_total_time(self, time):
-        self.total_time = time
-
-    def get_total_time(self):
-        return self.total_time
-
-    # render environment
-    def render(self, mode='human'):
-        if self.viewer is None:
-            from . import rendering 
-            self.viewer = rendering.Viewer(800,800)
- 
-        # create rendering geometry
-        if self.agent_geom_list is None:
-            # import rendering only if we need it (and don't import for headless machines)
-            from . import rendering
-            self.viewer.set_bounds(0-self.cam_range, 0+self.cam_range, 0-self.cam_range, 0+self.cam_range)
-            self.agent_geom_list = []
-            
-            for agent in self.agents:
-                agent_geom = {}
-                total_xform = rendering.Transform()
-                agent_geom['total_xform'] = total_xform
-                agent_geom['laser_line'] = []
-
-                geom = rendering.make_circle(agent.R_reach)
-                geom.set_color(*agent.color)
-                xform = rendering.Transform()
-                geom.add_attr(xform)
-                agent_geom['target_circle']=(geom,xform)
-
-                N = agent.N_laser
-                for idx_laser in range(N):
-                    theta_i = idx_laser*math.pi*2/N
-                    #d = agent.R_laser
-                    d = 1
-                    end = (math.cos(theta_i)*d, math.sin(theta_i)*d)
-                    geom = rendering.make_line((0, 0),end)
-                    geom.set_color(0.0,1.0,0.0,alpha = 0.5)
-                    xform = rendering.Transform()
-                    geom.add_attr(xform)
-                    geom.add_attr(total_xform)
-                    agent_geom['laser_line'].append((geom,xform))
-                
-                half_l = agent.L_car/2.0
-                half_w = agent.W_car/2.0
-                geom = rendering.make_polygon([[half_l,half_w],[-half_l,half_w],[-half_l,-half_w],[half_l,-half_w]])
-                geom.set_color(*agent.color,alpha = 0.4)
-                xform = rendering.Transform()
-                geom.add_attr(xform)
-                geom.add_attr(total_xform)
-                agent_geom['car']=(geom,xform)
-
-                geom = rendering.make_line((0,0),(half_l,0))
-                geom.set_color(1.0,0.0,0.0,alpha = 1)
-                xform = rendering.Transform()
-                geom.add_attr(xform)
-                geom.add_attr(total_xform)
-                agent_geom['front_line']=(geom,xform)
-                
-                geom = rendering.make_line((0,0),(-half_l,0))
-                geom.set_color(0.0,0.0,0.0,alpha = 1)
-                xform = rendering.Transform()
-                geom.add_attr(xform)
-                geom.add_attr(total_xform)
-                agent_geom['back_line']=(geom,xform)
-
-                self.agent_geom_list.append(agent_geom)
-
-            self.viewer.geoms = []
-            for agent_geom in self.agent_geom_list:
-                self.viewer.add_geom(agent_geom['target_circle'][0])
-                for geom in agent_geom['laser_line']:
-                    self.viewer.add_geom(geom[0])
-                self.viewer.add_geom(agent_geom['car'][0])
-                self.viewer.add_geom(agent_geom['front_line'][0])
-                self.viewer.add_geom(agent_geom['back_line'][0])
-        
-        self.update_laser_state()
-        for agent,agent_geom in zip(self.agents,self.agent_geom_list):
-            
-            for idx,laser_line in enumerate(agent_geom['laser_line']):
-                    laser_line[1].set_scale(agent.laser_state[idx],agent.laser_state[idx]) 
-            agent_geom['front_line'][1].set_rotation(agent.state.phi)
-            agent_geom['target_circle'][1].set_translation(agent.state.target_x,agent.state.target_y)
-            agent_geom['total_xform'].set_rotation(agent.state.theta)
-            agent_geom['total_xform'].set_translation(agent.state.x,agent.state.y)
-            
-        return self.viewer.render(return_rgb_array = mode=='rgb_array')
-
-
-def integrate_state_wrap(agent,dt):
-    return integrate_state_njit(agent.state.phi,agent.state.vel_b,agent.state.theta,agent.L_axis,agent.state.x,agent.state.y,dt)
-
-@numba.njit()
-def integrate_state_njit(_phi,_vb,_theta,_L,_x,_y,dt):
-    sth = np.sin(_theta)
-    cth = np.cos(_theta)
-    _xb = _x - cth*_L/2.0
-    _yb = _y - sth*_L/2.0
-    tphi = np.tan(_phi)
-    _omega = _vb/_L*tphi
-    _delta_theta = _omega * dt
-    if abs(_phi)>0.00001:
-        _rb = _L/tphi
-        _delta_tao = _rb*(1-np.cos(_delta_theta))
-        _delta_yeta = _rb*np.sin(_delta_theta)
-    else:
-        _delta_tao = _vb*dt*(_delta_theta/2.0)
-        _delta_yeta = _vb*dt*(1-_delta_theta**2/6.0)
-    _xb += _delta_yeta*cth - _delta_tao*sth
-    _yb += _delta_yeta*sth + _delta_tao*cth
-    _theta += _delta_theta
-    _theta = (_theta/3.1415926)%2*3.1415926
-
-    nx = _xb + np.cos(_theta)*_L/2.0
-    ny = _yb + np.sin(_theta)*_L/2.0
-    ntheta = _theta
-    return nx,ny,ntheta
