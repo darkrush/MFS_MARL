@@ -144,7 +144,7 @@ class World(object):
         self.cam_range = 4
         self.viewer = None
         self.total_time = 0
-        self.laser_dirty = False
+        self.laser_dirty = True
         self._reset_render()
     def reset(self):
         self.total_time = 0
@@ -155,7 +155,7 @@ class World(object):
                 agent.state.__dict__[k] = agent.__dict__['init_'+k]
             agent.state.crash = False
             agent.state.reach = False
-        self.laser_dirty = False
+        self.laser_dirty = True
         self._reset_render()
         return True
 
@@ -173,7 +173,7 @@ class World(object):
             if not enable :continue
             for k in agent.state.__dict__.keys():
                 agent.state.__dict__[k] = state.__dict__[k]
-        self.laser_dirty = False
+        self.laser_dirty = True
 
     def get_obs(self):
         obs_data = {'time':self.total_time,'obs_data':[]}
@@ -196,7 +196,7 @@ class World(object):
             self.check_collisions()
             self.check_reach()
             self.total_time += self.dt
-        self.laser_dirty = False
+        self.laser_dirty = True
     
     # gather agent action forces
     def apply_action(self):
@@ -217,7 +217,7 @@ class World(object):
                     continue
                 l_laser = laser_agent_agent_wrap(R,N,agent_a,agent_b)
                 agent_a.laser_state = np.min(np.vstack([agent_a.laser_state,l_laser]),axis = 0)
-        self.laser_dirty = True
+        self.laser_dirty = False
 
 
     # integrate physical state
@@ -348,6 +348,6 @@ def laser_agent_agent_njit(R_laser,N_laser,a_x,a_y,a_t,b_x,b_y,b_t,b_L,b_W):
                 dist = R_laser 
             else:
                 dist = (x2*y1-x1*y2)/(temp)
-            if dist > 0 and dist < R_laser:
+            if dist > 0 and dist < l_laser[laser_idx]:
                 l_laser[laser_idx] = dist
     return l_laser

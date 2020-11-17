@@ -170,7 +170,7 @@ class MSE_backend(object):
 
     def get_obs(self):
         obs = []
-        #self.world.update_laser_state()
+        self.world.update_laser_state()
         origin_obs = self.world.get_obs()
         #for ob in origin_obs:
         #    print(ob)

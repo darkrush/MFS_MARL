@@ -16,7 +16,7 @@ def parse_arg():
     parser.add_argument('--nb-train-steps', default=20, type=int, help='number train steps')
     parser.add_argument('--nb-warmup-steps', default=100, type=int, help='time without training but only filling the replay memory')
     parser.add_argument('--train-mode', default=1, type=int, help='traing mode')
-    parser.add_argument('--decay-coef', default=0.5, type=float, help='decay coef')
+    parser.add_argument('--decay-coef', default=0.2, type=float, help='decay coef')
     parser.add_argument('--search-method', default = 0, type=int, help='1 if do policy search')
     parser.add_argument('--back-step', default = 7, type=int, help='back step for search policy')
     parser.add_argument('--seed', default=0, type=int, help='random_seed')
@@ -45,9 +45,9 @@ def parse_arg():
     parser.add_argument('--nb-actions', default=2, type=int, help='number of actions')
     
     #Env args
-    parser.add_argument('--train-env', default='./src/scenario/scenario_train.yaml', type=str, help='train env file')
-    parser.add_argument('--search-env', default='./src/scenario/scenario_search.yaml', type=str, help='search env file')
-    parser.add_argument('--eval-env', default='./src/scenario/scenario_train.yaml', type=str, help='eval env file')
+    parser.add_argument('--train-env', default='./src/scenario/scenario_train_v1.yaml', type=str, help='train env file')
+    parser.add_argument('--search-env', default='./src/scenario/scenario_search_v1.yaml', type=str, help='search env file')
+    parser.add_argument('--eval-env', default='./src/scenario/scenario_train_v1.yaml', type=str, help='eval env file')
     parser.add_argument('--step-t', default=1.0, type=float, help='sim time for each step')
     parser.add_argument('--train-dt', default=0.001, type=float, help='sim delta time in train')
     parser.add_argument('--search-dt', default=1.0, type=float, help='sim delta time in search')

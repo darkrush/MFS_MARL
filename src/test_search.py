@@ -1,7 +1,7 @@
 from MF_env import MultiFidelityEnv
-from MSE import MSE_backend
+from MSE_numba import MSE_backend
 from MF_env import policy
-from scenario.paser import  parse_senario
+from MF_env.paser import  parse_senario
 
 def check_done(state_list):
     for state in state_list:
@@ -23,12 +23,14 @@ search_back_end.use_gui = False
 search_env = MultiFidelityEnv.MultiFidelityEnv(scenario,search_back_end)
 start_time,state = env.get_state()
 search_env.set_state(state,total_time = start_time)
-[trace,index] = search_env.search_policy(multi_step= 2, back_number= 2)
+
+[trace,index,search_step] = search_env.search_policy(multi_step= 2, back_number= 2)
 if trace is None :
     print("failed!!!")
     exit()
-print(zip(*index))
 t_policy = policy.trace_policy(trace,1)
 env.rollout_sync(t_policy.inference,finish_call_back=check_done,delay = 0.0)
 print(env.get_result())
+traj = env.get_trajectoy()
+print(traj[0])
 env.close()
