@@ -37,7 +37,7 @@ if __name__ == '__main__':
     api = wandb.Api()
     args = parse_arg()
     run = api.run(args.dir)
-    run_id = args.dir.split('/')[2]
+    run_id = args.dir.split('/')[1]
     args_dict = run.config
 #    eval_env = get_env(args_dict['eval_env'], step_t=args_dict['step_t'], sim_t=args_dict['eval_dt'], use_gui = True)
     eval_env = get_env(args_dict['eval_env'], step_t=args_dict['step_t'], sim_t=0.1, use_gui = True)

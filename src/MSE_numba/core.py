@@ -78,6 +78,7 @@ class Agent(object):
         self.L_axis     = 0.25 # distance between front and back wheel
         self.R_laser    = 4    # range of laser
         self.N_laser    = 360  # number of laser lines
+        self.true_laser = 360
         self.K_vel      = 1    # coefficient of back whell velocity control
         self.K_phi      = 30   # coefficient of front wheel deflection control
         self.init_x     = -1   # init x coordinate
@@ -94,6 +95,10 @@ class Agent(object):
                 self.__dict__[k] = v
         self.N_laser = int(self.N_laser)
 
+        if "true_laser" not in agent_prop.keys():
+            self.true_laser = self.N_laser
+        
+        assert self.N_laser%self.true_laser==0
         self.state = AgentState()
         self.action = Action()
         self.color = [0,0,0]
@@ -211,11 +216,12 @@ class World(object):
         for idx_a,agent_a in enumerate(self.agents):
             R = agent_a.R_laser
             N = agent_a.N_laser
+            true_N = agent_a.true_laser
             agent_a.laser_state = np.array([R]*N)
             for idx_b,agent_b in enumerate(self.agents):
                 if idx_a == idx_b:
                     continue
-                l_laser = laser_agent_agent_wrap(R,N,agent_a,agent_b)
+                l_laser = laser_agent_agent_wrap(R,N,true_N,agent_a,agent_b)
                 agent_a.laser_state = np.min(np.vstack([agent_a.laser_state,l_laser]),axis = 0)
         self.laser_dirty = False
 
@@ -283,19 +289,19 @@ def integrate_state_njit(_phi,_vb,_theta,_L,_x,_y,dt):
     ntheta = _theta
     return nx,ny,ntheta
 
-def laser_agent_agent_wrap(R_laser,N_laser,a,b):
-    laser_result = laser_agent_agent_njit(R_laser,N_laser,a.state.x,a.state.y,a.state.theta,b.state.x,b.state.y,b.state.theta,b.L_car,b.W_car)
+def laser_agent_agent_wrap(R_laser,N_laser,true_N,a,b):
+    laser_result = laser_agent_agent_njit(R_laser,N_laser,true_N,a.state.x,a.state.y,a.state.theta,b.state.x,b.state.y,b.state.theta,b.L_car,b.W_car)
     return laser_result
 
 @numba.njit()
-def laser_agent_agent_njit(R_laser,N_laser,a_x,a_y,a_t,b_x,b_y,b_t,b_L,b_W):
+def laser_agent_agent_njit(R_laser,N_laser,true_N,a_x,a_y,a_t,b_x,b_y,b_t,b_L,b_W):
 
     #l_laser = np.array([R_laser]*N_laser)
-    l_laser = np.ones((N_laser,),dtype=np.float32)*R_laser
+    true_l_laser = np.ones((true_N,),dtype=np.float32)*R_laser
     o_pos =  np.array([a_x,a_y])
     oi_pos = np.array([b_x,b_y])
     if np.linalg.norm(o_pos-oi_pos)>R_laser+(b_L**2 + b_W**2)**0.5 / 2.0:
-        return l_laser
+        return np.ones((N_laser,),dtype=np.float32)*R_laser
     theta = a_t
     theta_b = b_t
     cthb= math.cos(theta_b)
@@ -325,21 +331,21 @@ def laser_agent_agent_njit(R_laser,N_laser,a_x,a_y,a_t,b_x,b_y,b_t,b_L,b_W):
         if end_point[1]<0:
             theta_end = math.pi*2-theta_end
         theta_end-=theta
-        laser_idx_start = theta_start/(2*math.pi/N_laser)
-        laser_idx_end   =   theta_end/(2*math.pi/N_laser)
+        laser_idx_start = theta_start/(2*math.pi/true_N)
+        laser_idx_end   =   theta_end/(2*math.pi/true_N)
         if laser_idx_start> laser_idx_end:
-            laser_idx_end+=N_laser
+            laser_idx_end+=true_N
         if math.floor(laser_idx_end)-math.floor(laser_idx_start)==0:
             continue
         laser_idx_start = math.ceil(laser_idx_start)
         laser_idx_end = math.floor(laser_idx_end)
         for laser_idx in range(laser_idx_start,laser_idx_end+1):
-            laser_idx%=N_laser
+            laser_idx%=true_N
             x1 = start_point[0]
             y1 = start_point[1]
             x2 = end_point[0]
             y2 = end_point[1]
-            theta_i = theta+laser_idx*math.pi*2/N_laser
+            theta_i = theta+laser_idx*math.pi*2/true_N
             cthi = math.cos(theta_i)
             sthi = math.sin(theta_i)
             temp = (y1-y2)*cthi - (x1-x2)*sthi
@@ -348,6 +354,19 @@ def laser_agent_agent_njit(R_laser,N_laser,a_x,a_y,a_t,b_x,b_y,b_t,b_L,b_W):
                 dist = R_laser 
             else:
                 dist = (x2*y1-x1*y2)/(temp)
-            if dist > 0 and dist < l_laser[laser_idx]:
-                l_laser[laser_idx] = dist
-    return l_laser
+            if dist > 0 and dist < true_l_laser[laser_idx]:
+                true_l_laser[laser_idx] = dist
+    
+    linear_sacle = N_laser//true_N
+    if linear_sacle == 1:
+        return true_l_laser
+    else:
+        l_laser = np.ones((N_laser,),dtype=np.float32)*R_laser
+        for i in range(true_N):
+            for j in range(linear_sacle):
+                l_data = true_l_laser[i]
+                r_data = true_l_laser[(i+1)%true_N]
+                alpha = j/linear_sacle
+                tmp = l_data*(1-alpha) + r_data*alpha
+                l_laser[i*linear_sacle+j] = tmp
+        return l_laser

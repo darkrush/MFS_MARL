@@ -5,8 +5,8 @@ common:
   field_range : [-2.0,2.0,-2.0,2.0]
   #field_range : [-10.0,10.0,-10.0,10.0]
   reward_coef :
-    reach : 1.0         # reward for reach goal
-    crash : -1.0        # reward for crash
+    reach : 10.0         # reward for reach goal
+    crash : -10.0        # reward for crash
     time_penalty: 0.0   # time penalty per second
     potential: 0.0     # coefficient of potential reward
 
@@ -18,7 +18,7 @@ default_agent: &default_agent # default setting
   L_axis  : 0.20 # distance between front and back wheel
   R_laser : 3.0    # range of laser
   N_laser : 128  # number of laser lines
-  true_laser: 128
+  #true_laser: 128
   K_vel   : 0.18266     # coefficient of back whell velocity control
   deg_K_phi   : 17.10   # coefficient of front wheel deflection control 
   init_movable: true

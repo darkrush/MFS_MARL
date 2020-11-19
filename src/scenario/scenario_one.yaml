@@ -1,25 +1,25 @@
 common:
   use_gui : True
-  time_limit : 40.0    # maximal time for one episode
+  time_limit : 100.0    # maximal time for one episode
   reset_mode : random
   #reset_mode : init
   #field_range : [-1.5,1.5,-1.5,1.5]
-  field_range : [-2.0,2.0,-2.0,2.0]
+  field_range : [-1.0,1.0,-1.0,1.0]
   reward_coef :
-    reach : 30.0         # reward for reach goal
-    crash : -20.0        # reward for crash
-    time_penalty: -2.0   # time penalty per second
-    potential: 30.0     # coefficient of potential reward
+    reach : 1.0         # reward for reach goal
+    crash : -1.0        # reward for crash
+    time_penalty: 0.0   # time penalty per second
+    potential: 0.0     # coefficient of potential reward
 
 default_agent: &default_agent # default setting
   R_safe  : 0.22  # minimal distance not crash
-  R_reach : 0.1  # maximal distance for reach target
+  R_reach : 0.2  # maximal distance for reach target
   L_car   : 0.30 # length of the car
   W_car   : 0.20  # width of the car
   L_axis  : 0.20 # distance between front and back wheel
   R_laser : 2.0    # range of laser
   N_laser : 32  # number of laser lines
-  K_vel   : 0.8266    # coefficient of back whell velocity control
+  K_vel   : 0.18266    # coefficient of back whell velocity control
   deg_K_phi   : 17.10   # coefficient of front wheel deflection control 
   init_movable: true
   init_enable: true

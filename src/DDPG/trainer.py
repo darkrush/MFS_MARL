@@ -75,6 +75,8 @@ class DDPG_trainer(object):
         obs_history = []
         time_history = []
         action_history = []
+        reach_history = []
+        crash_history = []
         search_step = 0
         while True:
             if self.search_method is 1 :
@@ -89,7 +91,7 @@ class DDPG_trainer(object):
             if finish is 'finish' :
                 break
             elif finish is 'pause':
-                state_history,obs_history,time_history,action_history = self.env.get_history()
+                state_history,obs_history,time_history,action_history,reach_history,crash_history = self.env.get_history()
                 crash_list = [state.crash for state in state_history[-1]]
                 last_back_index= search_state_index
                 search_state_index = max(len(state_history)-self.back_step,1)
@@ -121,12 +123,16 @@ class DDPG_trainer(object):
                     state_history = state_history[:-1]
                     obs_history = obs_history[:-1]
                     time_history = time_history[:-1]
+                    reach_history = reach_history[:-1]
+                    crash_history = reach_history[:-1]
                 else :
                     self.env.set_state(state_history[search_state_index],total_time = time_history[search_state_index])
                     state_history = state_history[:search_state_index]
                     obs_history = obs_history[:search_state_index]
                     time_history = time_history[:search_state_index]
                     action_history = action_history[:search_state_index]
+                    reach_history = reach_history[:search_state_index]
+                    crash_history = reach_history[:search_state_index]
                 self.env.set_history(state_history,obs_history,time_history,action_history)
 
         trajectoy = self.env.get_trajectoy()

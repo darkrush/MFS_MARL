@@ -11,7 +11,7 @@ common:
     potential: 0.0     # coefficient of potential reward
 
 default_agent: &default_agent # default setting
-  R_safe  : 0.20  # minimal distance not crash
+  R_safe  : 0.18  # minimal distance not crash
   R_reach : 0.1  # maximal distance for reach target
   L_car   : 0.30 # length of the car
   W_car   : 0.20  # width of the car

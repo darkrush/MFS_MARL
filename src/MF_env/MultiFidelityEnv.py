@@ -190,15 +190,15 @@ class MultiFidelityEnv(object):
             #if not no_conflict: print('failed to place target with no confiliction')
         return enable_tmp,state_list,enable_list
 
-    def _calc_reward(self,new_state,old_state,delta_time):
-        crash = self.reward_coef['crash'] if new_state.crash else 0
-        reach = self.reward_coef['reach'] if new_state.reach else 0
+    def _calc_reward(self,new_state,old_state,delta_time,reach,crash):
+        crash_reward = self.reward_coef['crash'] if crash else 0.0
+        reach_reward = self.reward_coef['reach'] if reach else 0.0
         new_dist = ((new_state.x-new_state.target_x)**2+(new_state.y-new_state.target_y)**2)**0.5
         old_dist = ((old_state.x-old_state.target_x)**2+(old_state.y-old_state.target_y)**2)**0.5
 
         potential = self.reward_coef['potential'] * (old_dist-new_dist)
         time_penalty = self.reward_coef['time_penalty']*delta_time
-        reward = crash + reach + potential + time_penalty
+        reward = crash_reward + reach_reward + potential + time_penalty
         #print(re , crash , reach , potential, time_penalty)
         return reward
     
@@ -222,56 +222,89 @@ class MultiFidelityEnv(object):
         self.obs_history = []
         self.time_history = []
         self.action_history = []
+        self.reach_history = []
+        self.crash_history = []
+        self.step_number = 0
 
     def get_history(self):
-        return self.state_history,self.obs_history,self.time_history,self.action_history
+        return self.state_history,self.obs_history,self.time_history,self.action_history,self.reach_history,self.crash_history
     
-    def set_history(self,state_history,obs_history,time_history,action_history):
+    def set_history(self,state_history,obs_history,time_history,action_history,reach_history,crash_history):
         self.state_history = state_history
         self.obs_history = obs_history
         self.time_history = time_history
         self.action_history = action_history
+        self.reach_history = reach_history
+        self.crash_history = crash_history
 
     def rollout_sync(self, policy_call_back, finish_call_back = None, pause_call_back = None,delay = 0):
         result_flag = None
         while True:
             total_time,new_state = self.backend.get_state()
-            new_obs = self.backend.get_obs()
-            action = policy_call_back(new_obs,new_state)
-            self.state_history.append(copy.deepcopy(new_state))
-            self.obs_history.append(new_obs)
-            self.time_history.append(total_time)
+
             # check whether we should pause rollout
+            pause_flag = False
             if pause_call_back is not None:
-                if pause_call_back(new_state):
-                    result_flag = 'pause'
-                    break
+                pause_flag = pause_call_back(new_state)
+            if pause_flag:
+                new_obs = self.backend.get_obs()
+                self.state_history.append(copy.deepcopy(new_state))
+                self.reach_history.append([state.reach for state in new_state])
+                self.crash_history.append([state.crash for state in new_state])
+                self.obs_history.append(new_obs)
+                self.time_history.append(total_time)
+                result_flag = 'pause'
+                break
+
 
             # check whether we should stop one rollout
-            finish = False
+            finish_flag = False
             if finish_call_back is not None:
-                finish = finish_call_back(new_state)
-            finish = finish or (total_time > self.time_limit)
-            if finish:
+                finish_flag = finish_call_back(new_state)
+            finish_flag = finish_flag or (total_time > self.time_limit)
+            if finish_flag:
                 result_flag = 'finish'
+                new_obs = self.backend.get_obs()
+
+                self.state_history.append(copy.deepcopy(new_state))
+                self.reach_history.append([state.reach for state in new_state])
+                self.crash_history.append([state.crash for state in new_state])
+                self.obs_history.append(new_obs)
+                self.time_history.append(total_time)
                 break
+
+            self.reach_history.append([state.reach for state in new_state])
+            self.crash_history.append([state.crash for state in new_state])
+            
+            # Reset mode is random need random_reset
             if self.reset_mode == 'random':
-                enable_tmp,state_list,enable_list = self._random_reset(new_state)
-                if enable_tmp:
-                    self.backend.set_state(state_list,enable_list)
+                enable_tmp,new_state_list,enable_list = self._random_reset(new_state)
+                # if the state real changed, enable is True
+                set_new_state = enable_tmp
+                    
+            # Reset mode is init need chech
             else :
                 change = False 
                 for idx,state in enumerate(new_state):
                     if state.reach:
                         change = True
                         new_state[idx].enable = False
-                if change:
-                    self.backend.set_state(new_state)
-                
+                enable_list = None
+                set_new_state = change
+                new_state_list = new_state
 
+            #set new state if needed, get obs,
+            if set_new_state:
+                self.backend.set_state(new_state_list,enable_list)
+            new_obs = self.backend.get_obs()
+            action = policy_call_back(new_obs,new_state)
             self.backend.set_action(action)
-            self.action_history.append(action)
             self.backend.step()
+            self.state_history.append(copy.deepcopy(new_state))
+            self.obs_history.append(new_obs)
+            self.time_history.append(total_time)
+            self.action_history.append(action)
+            
             self.step_number+=1
             if delay>0:
                 time.sleep(delay)
@@ -342,16 +375,20 @@ class MultiFidelityEnv(object):
         for agent_idx in range(self.agent_num):
             trajectoy_agent = []
             for idx in range(len(self.action_history)):
-                if self.state_history[idx][agent_idx].movable or self.sync_step:
-                    done = not self.state_history[idx+1][agent_idx].movable
-                    time = self.time_history[idx]
-                    obs = self.obs_history[idx][agent_idx]
-                    obs_next = self.obs_history[idx+1][agent_idx]
-                    action = self.action_history[idx][agent_idx]
-                    reward = self._calc_reward(self.state_history[idx+1][agent_idx],self.state_history[idx][agent_idx],self.time_history[idx+1]-self.time_history[idx])
-                    if not self.state_history[idx][agent_idx].movable:
-                        reward = 0
-                    trajectoy_agent.append({'obs':obs,'action':action,'reward': reward, 'obs_next':obs_next, 'done':done, 'time':time})
+                done = False
+                time = self.time_history[idx]
+                obs = self.obs_history[idx][agent_idx]
+                obs_next = self.obs_history[idx+1][agent_idx]
+                action = self.action_history[idx][agent_idx]
+                delta_time = self.time_history[idx+1]-self.time_history[idx]
+                old_state = self.state_history[idx][agent_idx]
+                new_state = self.state_history[idx+1][agent_idx]
+                reach = self.reach_history[idx+1][agent_idx]
+                crash = self.crash_history[idx+1][agent_idx]
+                reward = self._calc_reward(new_state,old_state,delta_time,reach,crash)
+                if not self.state_history[idx][agent_idx].movable:
+                    reward = 0
+                trajectoy_agent.append({'obs':obs,'action':action,'reward': reward, 'obs_next':obs_next, 'done':done, 'time':time})
             trajectoy.append(trajectoy_agent)
         return trajectoy
 
@@ -361,19 +398,25 @@ class MultiFidelityEnv(object):
         crash_time = 0
         reach_time = 0
         total_reward = 0
-        for list_idx in range(len(self.state_history)): 
-            state_list = self.state_history[list_idx]
-            for state_idx in range(len(state_list)):
-                state = state_list[state_idx]
-                if state.movable and (list_idx+1)<len(self.state_history):
-                    total_reward += self._calc_reward(  self.state_history[list_idx+1][state_idx],
-                                                        self.state_history[list_idx][state_idx],
-                                                        self.time_history[list_idx+1]-self.time_history[list_idx])
-                if state.movable:
-                    vel_list.append(abs(state.vel_b))
-                if list_idx>0:
-                    crash_time += 1 if state.crash and not self.state_history[list_idx-1][state_idx].crash else 0
-                    reach_time += 1 if state.reach and not self.state_history[list_idx-1][state_idx].reach else 0
+
+        for idx in range(len(self.action_history)): 
+            state_list = self.state_history[idx]
+            for agent_idx in range(len(state_list)):
+                
+                delta_time = self.time_history[idx+1]-self.time_history[idx]
+                old_state = self.state_history[idx][agent_idx]
+                new_state = self.state_history[idx+1][agent_idx]
+                reach = self.reach_history[idx+1][agent_idx]
+                crash = self.crash_history[idx+1][agent_idx]
+                reward = self._calc_reward(new_state,old_state,delta_time,reach,crash)
+                total_reward += reward
+
+                crash_time += 1 if crash else 0
+                reach_time += 1 if reach else 0
+
+                #build vel_b list
+                vel_list.append(abs( state_list[agent_idx].vel_b))
+
         result['total_reward'] = total_reward
         result['crash_time'] = crash_time
         result['reach_time'] = reach_time

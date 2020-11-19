@@ -8,17 +8,16 @@ common:
     reach : 1.0         # reward for reach goal
     crash : -1.0        # reward for crash
     time_penalty: 0.0   # time penalty per second
-    potential: 0.0     # coefficient of potential reward
+    potential: 1.0     # coefficient of potential reward
 
 default_agent: &default_agent # default setting
-  R_safe  : 0.20  # minimal distance not crash
+  R_safe  : 0.24  # minimal distance not crash
   R_reach : 0.1  # maximal distance for reach target
   L_car   : 0.30 # length of the car
   W_car   : 0.20  # width of the car
   L_axis  : 0.20 # distance between front and back wheel
   R_laser : 3.0    # range of laser
   N_laser : 128  # number of laser lines
-  true_laser: 128
   K_vel   : 0.18266     # coefficient of back whell velocity control
   deg_K_phi   : 17.10   # coefficient of front wheel deflection control 
   init_movable: true
@@ -26,7 +25,7 @@ default_agent: &default_agent # default setting
 
 agent_groups: 
   group_2:
-    num :  6                   # number of agents in group_1:
+    num :  1                   # number of agents in group_1:
     <<: *default_agent          # use default agent setting
     init_x     : 0.0
     init_y     : 0.0

@@ -147,13 +147,15 @@ class MSE_backend(object):
         return self.viewer.render(time,return_rgb_array = mode=='rgb_array')
 
     def step(self):
-        render_frams = self.step_number if self.step_number <= 40 else int(self.step_number / 10)
-        total_frams = self.step_number
-        while total_frams>=0:
-            self.world.step(render_frams if render_frams < total_frams else total_frams)
-            if self.use_gui :
+        if self.use_gui :
+            total_frams = self.step_number
+            render_frams = self.step_number if self.step_number <= 40 else int(self.step_number / 10)
+            while total_frams>0:
+                self.world.step(render_frams if render_frams < total_frams else total_frams)
                 self.render(time = '%.2f'%self.world.get_total_time())
-            total_frams-=render_frams
+                total_frams-=render_frams
+        else:
+            self.world.step(self.step_number)
 
     def get_state(self):
         return self.world.total_time,self.world.get_state()
